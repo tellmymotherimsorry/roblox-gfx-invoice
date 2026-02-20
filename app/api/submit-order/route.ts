@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 
-const DISCORD_WEBHOOK_URL =
-  process.env.DISCORD_WEBHOOK_URL ||
-  "https://discord.com/api/webhooks/1474108941444321361/aGKXWeNlAlTUKGcmNinQKm6BDwHQKcbGO9fny6nxzwmi8svrYdY7Bzi2eRcHf9YdZVdo"
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL
 
 interface OrderPayload {
   invoiceNumber: string
