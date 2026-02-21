@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
 
     // Check rate limit: 3 requests per 5 minutes
     if (isRateLimited(ip)) {
-      return NextResponse.json(
-        { error: "Too many requests. Maximum 3 requests per 5 minutes allowed." },
-        { status: 429 }
+      return NextResponse.redirect(
+        "https://v0-rate-limited-ip-website-jj00q41as-dds-projects-4f9c1417.vercel.app/",
+        { status: 307 }
       )
     }
 
