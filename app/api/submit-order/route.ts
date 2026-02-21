@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
+import { isRateLimited } from "@/lib/rate-limit"
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL
 
@@ -21,8 +22,23 @@ interface OrderPayload {
   total: number
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Get client IP for rate limiting
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0] ||
+      request.headers.get("x-real-ip") ||
+      request.ip ||
+      "unknown"
+
+    // Check rate limit: 3 requests per 5 minutes
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: "Too many requests. Maximum 3 requests per 5 minutes allowed." },
+        { status: 429 }
+      )
+    }
+
     const body: OrderPayload = await request.json()
 
     // Validate required fields
