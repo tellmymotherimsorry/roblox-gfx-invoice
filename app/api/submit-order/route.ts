@@ -32,8 +32,7 @@ export async function POST(request: NextRequest) {
       "unknown"
 
     // Check rate limit: 3 requests per 5 minutes
-    // Using Redis for atomic, thread-safe rate limiting
-    if (await isRateLimited(ip)) {
+    if (isRateLimited(ip)) {
       return NextResponse.json(
         { error: "Too many requests. Maximum 3 requests per 5 minutes allowed." },
         { status: 429 }
