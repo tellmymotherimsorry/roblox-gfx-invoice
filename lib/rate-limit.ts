@@ -1,39 +1,52 @@
-// In-memory rate limiter: 3 requests per 5 minutes per IP
-const requestMap = new Map<string, number[]>()
+import { Redis } from "@upstash/redis"
+
+// Use Upstash Redis for thread-safe, atomic rate limiting
+// Get credentials from environment variables
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL || "",
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
+})
 
 const RATE_LIMIT = 3
-const WINDOW_MS = 5 * 60 * 1000 // 5 minutes
+const WINDOW_MS = 5 * 60 // 5 minutes in seconds
 
-export function isRateLimited(ip: string): boolean {
-  const now = Date.now()
-  
-  // Get requests for this IP
-  let requests = requestMap.get(ip) || []
-  
-  // Remove requests older than the window
-  requests = requests.filter((time) => now - time < WINDOW_MS)
-  
-  // Check if limit exceeded
-  if (requests.length >= RATE_LIMIT) {
-    return true
+/**
+ * Check if an IP is rate limited using atomic Redis operations
+ * This prevents race conditions where multiple concurrent requests could bypass the limit
+ */
+export async function isRateLimited(ip: string): Promise<boolean> {
+  const key = `rate_limit:${ip}`
+
+  try {
+    // Increment the counter atomically and get the new value
+    const current = await redis.incr(key)
+
+    // If this is the first request, set expiration
+    if (current === 1) {
+      await redis.expire(key, WINDOW_MS)
+    }
+
+    // If we've exceeded the limit, deny the request
+    return current > RATE_LIMIT
+  } catch (error) {
+    // If Redis is unavailable, log error but allow request (fail open)
+    console.error("Rate limiter error:", error)
+    return false
   }
-  
-  // Add current request
-  requests.push(now)
-  requestMap.set(ip, requests)
-  
-  // Cleanup: remove IP if no recent requests (optional optimization)
-  if (requests.length === 0) {
-    requestMap.delete(ip)
-  }
-  
-  return false
 }
 
-// Get remaining requests for an IP (useful for debugging)
-export function getRemainingRequests(ip: string): number {
-  const now = Date.now()
-  const requests = requestMap.get(ip) || []
-  const recentRequests = requests.filter((time) => now - time < WINDOW_MS)
-  return Math.max(0, RATE_LIMIT - recentRequests.length)
+/**
+ * Get remaining requests for an IP (useful for headers or debugging)
+ */
+export async function getRemainingRequests(ip: string): Promise<number> {
+  const key = `rate_limit:${ip}`
+
+  try {
+    const current = await redis.get<number>(key)
+    const count = current || 0
+    return Math.max(0, RATE_LIMIT - count)
+  } catch (error) {
+    console.error("Rate limiter error:", error)
+    return RATE_LIMIT
+  }
 }
